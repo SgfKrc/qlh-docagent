@@ -184,3 +184,19 @@ Configuration files are fail-closed. An unknown profile schema, an absolute or
 parent-traversing path, an unknown field, or an invalid vocabulary/Git value
 returns code 2 and identifies the affected configuration file and field on
 stderr.
+
+For jobs that opt into `.env.docagent`, validate it before the audit and pass
+the same explicit path to both commands:
+
+```yaml
+- name: Validate docagent configuration
+  run: python tools/docagent/run.py config --root . --env .env.docagent --json
+- name: Audit documentation
+  run: >-
+    python tools/docagent/run.py audit --root . --env .env.docagent --json
+    --output build/doc-audit/audit.json --fail-on error
+```
+
+Do not upload `.env.docagent`. The config JSON contains only field sources,
+safe model/profile names, default hints, and an API-key configured boolean; it
+never contains the key or full remote endpoint.

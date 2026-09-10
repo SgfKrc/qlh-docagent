@@ -8,11 +8,48 @@ python tools/docagent/run.py scan --root G:/path/to/project --fail-on none
 python tools/docagent/run.py scan --root G:/path/to/project --profile minimal --json --fail-on none
 python tools/docagent/run.py audit --root G:/path/to/project --output build/docagent/audit.json
 python tools/docagent/run.py init --root G:/path/to/project
+python tools/docagent/run.py config --root G:/path/to/project
 ```
 
 The P3B core scans a profile-defined documentation tree recursively using the versioned R1-R5 rules contract. Bundled profiles are `qlh` (the main project's Git-aware layout) and `minimal` (Git checks disabled). A project can run `init` to copy a profile into `.docagent/profile.yaml`, or pass `--profile <name-or-path>` explicitly. `scan` never writes the target repository. `audit --output` may write a report outside the configured documentation directory.
 
 The main-project compatibility entrypoint is `python scripts/doc_maintenance_audit.py`. Its historical M1 flags delegate to this package and keep writing `build/doc-audit/audit.json` plus `audit.md`; M2/M3 extension flags remain on the legacy implementation until their dedicated adapters are migrated.
+
+## Dedicated environment configuration
+
+Copy [`.env.docagent.example`](.env.docagent.example) to `.env.docagent` in the
+target repository. The copy is ignored by Git. Docagent never reads the main
+`.env` and never merges `DOCAGENT_*` values from the process environment.
+
+Validate the file before scanning:
+
+```text
+python tools/docagent/run.py config --root .
+python tools/docagent/run.py config --root . --env configs/team.docagent.env --json
+```
+
+An explicit `--env` is required to exist. Without `--env`, scan/audit remains
+backward-compatible when `.env.docagent` is absent; when the project file is
+present it is loaded and validated fail-closed. Invalid or duplicate fields,
+unsafe URLs, a non-loopback Ollama endpoint, parent-traversing profiles, and an
+incomplete explicitly selected remote provider return exit code 2 with a
+field-level message. Values are never included in errors.
+
+`DOCAGENT_PROFILE` accepts a bundled name (`qlh` or `minimal`) or a profile
+path relative to the env file. Selection precedence is `--profile`, then
+`DOCAGENT_PROFILE`, then the existing project/bundled default. Pass the same
+env to a scan when it is not located at `<root>/.env.docagent`:
+
+```text
+python tools/docagent/run.py scan --root . --env configs/team.docagent.env --json --fail-on none
+```
+
+`config` reports which non-secret fields came from the file and which defaults
+were applied. `DOCAGENT_DEEPSEEK_API_KEY` is represented only by a configured
+boolean; its value is excluded from object representations, stdout, stderr,
+JSON reports, and scanner reports. The standalone scanner does not initiate an
+LLM request; these provider settings are validated now for the separately
+migrated M2 adapter.
 
 For CI conventions, stable exit codes, report formats, and a GitHub Actions example, see [`CI.md`](CI.md).
 

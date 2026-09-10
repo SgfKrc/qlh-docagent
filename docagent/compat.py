@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+from .environment import EnvironmentConfigError, discover_environment, profile_reference
 from .profile import ProfileConfigError
 from .report import findings, render_json, render_markdown, render_text
 from .rules import RulesConfigError
@@ -57,6 +58,7 @@ def _build_parser() -> argparse.ArgumentParser:
     formats.add_argument("--markdown", action="store_true", help="write Markdown to stdout")
     parser.add_argument("--since", metavar="DUR", help="scan documents changed within N days, for example 7d")
     parser.add_argument("--profile", help="profile name or project profile file path")
+    parser.add_argument("--env", type=Path, help="dedicated .env.docagent path")
     parser.add_argument(
         "--fail-on", choices=("none", "warn", "error", "R1", "R2", "R3", "R4", "R5"),
         default="error", help="return 1 when this severity or rule is found",
@@ -71,9 +73,21 @@ def run_compat(argv: list[str] | None, root: str | Path) -> int:
     args = _build_parser().parse_args(argv)
     repo_root = Path(root).expanduser().resolve()
     output_dir = repo_root / "build" / "doc-audit"
+    environment = None
     try:
-        report = scan_repository(repo_root, since=_parse_since(args.since), profile=args.profile)
-    except (ProfileConfigError, RulesConfigError) as exc:
+        environment = discover_environment(repo_root, args.env)
+        selected_profile = args.profile or (profile_reference(environment) if environment is not None else None)
+        report = scan_repository(repo_root, since=_parse_since(args.since), profile=selected_profile)
+    except EnvironmentConfigError as exc:
+        print(f"docagent: 环境配置错误：{exc}", file=sys.stderr)
+        return 2
+    except ProfileConfigError as exc:
+        if environment is not None and args.profile is None:
+            print("docagent: 环境配置错误：DOCAGENT_PROFILE 指向的 profile 不可读取或无效", file=sys.stderr)
+        else:
+            print(f"docagent: configuration error: {exc}", file=sys.stderr)
+        return 2
+    except RulesConfigError as exc:
         print(f"docagent: configuration error: {exc}", file=sys.stderr)
         return 2
     except (ScanError, ValueError) as exc:

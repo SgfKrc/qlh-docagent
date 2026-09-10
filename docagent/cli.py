@@ -23,6 +23,15 @@ from .evolution import (
     transition_evolution,
     write_evolution,
 )
+from .environment import (
+    DEFAULT_ENV_FILENAME,
+    EnvironmentConfigError,
+    discover_environment,
+    load_environment,
+    profile_reference,
+    render_environment_json,
+    render_environment_text,
+)
 from .gate import GateError, GateMismatch, build_gate_record, verify_gate, write_gate
 from .profile import DEFAULT_PROFILE_NAME, ProfileConfigError, load_profile
 from .report import render_delta_markdown, render_delta_text, render_json, render_markdown, render_text
@@ -66,6 +75,7 @@ def _add_scan_options(parser: argparse.ArgumentParser, *, output: bool = False) 
     parser.add_argument("--root", required=True, type=Path, help="target repository root")
     parser.add_argument("--rules", type=Path, help="rules file; defaults to the project or bundled v1 rules")
     parser.add_argument("--profile", help="profile name or project profile file path")
+    parser.add_argument("--env", type=Path, help="dedicated .env.docagent path; missing or invalid files fail closed")
     parser.add_argument("--since", metavar="DUR", help="scan documents changed within N days, for example 7d")
     parser.add_argument("--baseline", type=Path, help="locked baseline JSON used for comparison")
     parser.add_argument("--dry-run", action="store_true", help="validate comparison inputs without changing repository state")
@@ -125,6 +135,27 @@ def _configuration_error(exc: Exception) -> None:
     print(f"docagent: configuration error: {exc}", file=sys.stderr)
 
 
+def _environment_error(exc: Exception) -> None:
+    print(f"docagent: 环境配置错误：{exc}", file=sys.stderr)
+
+
+def _environment_for_args(args: argparse.Namespace, root: str | Path):
+    return discover_environment(root, getattr(args, "env", None))
+
+
+def _profile_for_args(args: argparse.Namespace, environment) -> str | Path | None:
+    if getattr(args, "profile", None) is not None:
+        return args.profile
+    return profile_reference(environment) if environment is not None else None
+
+
+def _source_label(path: Path, root: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _output_target(args: argparse.Namespace, report: dict[str, Any]) -> Path | None:
     if getattr(args, "output", None) is None:
         return None
@@ -166,14 +197,25 @@ def _artifact_target(path: Path | None, args: argparse.Namespace, report: dict[s
 
 
 def _run_scan(args: argparse.Namespace) -> int:
+    environment = None
     try:
+        environment = _environment_for_args(args, args.root)
         report = scan_repository(
             args.root,
             rules_path=args.rules,
             since=_parse_since(args.since),
-            profile=args.profile,
+            profile=_profile_for_args(args, environment),
         )
-    except (ProfileConfigError, RulesConfigError) as exc:
+    except EnvironmentConfigError as exc:
+        _environment_error(exc)
+        return 2
+    except ProfileConfigError as exc:
+        if environment is not None and args.profile is None:
+            _environment_error(EnvironmentConfigError("DOCAGENT_PROFILE 指向的 profile 不可读取或无效"))
+        else:
+            _configuration_error(exc)
+        return 2
+    except RulesConfigError as exc:
         _configuration_error(exc)
         return 2
     except (ScanError, ValueError) as exc:
@@ -302,15 +344,29 @@ def _run_rules_evolve(args: argparse.Namespace) -> int:
 
 
 def _run_gate_verify(args: argparse.Namespace) -> int:
+    environment = None
     try:
+        environment = _environment_for_args(args, Path.cwd())
+        verification_profile = _profile_for_args(args, environment)
+        if environment is not None and args.profile is None:
+            verification_profile = load_profile(verification_profile)
         result = verify_gate(
             args.report,
             args.rules,
-            profile=args.profile,
+            profile=verification_profile,
             gate_path=args.gate,
             baseline_path=args.baseline,
             evolution_path=args.evolution,
         )
+    except EnvironmentConfigError as exc:
+        _environment_error(exc)
+        return 2
+    except ProfileConfigError as exc:
+        if environment is not None and args.profile is None:
+            _environment_error(EnvironmentConfigError("DOCAGENT_PROFILE 指向的 profile 不可读取或无效"))
+        else:
+            _configuration_error(exc)
+        return 2
     except GateMismatch as exc:
         print(f"docagent: gate failed: {exc}", file=sys.stderr)
         return 1
@@ -334,10 +390,18 @@ def _run_init(args: argparse.Namespace) -> int:
     if not root.is_dir():
         print(f"docagent: repository root is not a directory: {root}", file=sys.stderr)
         return 2
+    environment = None
     try:
-        selected_profile = load_profile(args.profile)
+        environment = _environment_for_args(args, root)
+        selected_profile = load_profile(_profile_for_args(args, environment) or DEFAULT_PROFILE_NAME)
+    except EnvironmentConfigError as exc:
+        _environment_error(exc)
+        return 2
     except ProfileConfigError as exc:
-        _configuration_error(exc)
+        if environment is not None and args.profile is None:
+            _environment_error(EnvironmentConfigError("DOCAGENT_PROFILE 指向的 profile 不可读取或无效"))
+        else:
+            _configuration_error(exc)
         return 2
 
     config_dir = root / ".docagent"
@@ -361,6 +425,30 @@ def _run_init(args: argparse.Namespace) -> int:
     print(f"initialized {config_dir}")
     print(f"rules: {rules_target}")
     print(f"profile: {profile_target}")
+    return 0
+
+
+def _run_config(args: argparse.Namespace) -> int:
+    root = Path(args.root).expanduser().resolve()
+    if not root.is_dir():
+        print("docagent: 环境配置错误：仓库根目录不存在或不是目录", file=sys.stderr)
+        return 2
+    path = Path(args.env).expanduser().resolve() if args.env is not None else root / DEFAULT_ENV_FILENAME
+    try:
+        environment = load_environment(path, required=True)
+        # Config check also proves that the selected scanner profile resolves.
+        load_profile(profile_reference(environment))
+    except EnvironmentConfigError as exc:
+        _environment_error(exc)
+        return 2
+    except ProfileConfigError:
+        _environment_error(EnvironmentConfigError("DOCAGENT_PROFILE 指向的 profile 不可读取或无效"))
+        return 2
+    source = _source_label(environment.source_path, root)
+    if args.json:
+        sys.stdout.write(render_environment_json(environment, source=source))
+    else:
+        sys.stdout.write(render_environment_text(environment, source=source))
     return 0
 
 
@@ -403,6 +491,7 @@ def build_parser() -> argparse.ArgumentParser:
     gate_verify.add_argument("--report", required=True, type=Path, help="JSON scanner report")
     gate_verify.add_argument("--rules", required=True, type=Path, help="rules file used by the report")
     gate_verify.add_argument("--profile", help="profile name or project profile file path")
+    gate_verify.add_argument("--env", type=Path, help="dedicated .env.docagent path")
     gate_verify.add_argument("--baseline", type=Path, help="baseline JSON bound to the report")
     gate_verify.add_argument("--evolution", type=Path, help="approved/released evolution record bound to the report")
     gate_verify.add_argument("--gate", type=Path, help="gate artifact to verify")
@@ -413,9 +502,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     init = subparsers.add_parser("init", help="create .docagent configuration in a target project")
     init.add_argument("--root", required=True, type=Path, help="target repository root")
-    init.add_argument("--profile", default=DEFAULT_PROFILE_NAME, help="profile name or file path to copy")
+    init.add_argument("--profile", help="profile name or file path to copy; env profile is used when omitted")
+    init.add_argument("--env", type=Path, help="dedicated .env.docagent path")
     init.add_argument("--force", action="store_true", help="replace an existing .docagent configuration")
     init.set_defaults(handler=_run_init)
+
+    config = subparsers.add_parser("config", help="validate .env.docagent without exposing secrets")
+    config.add_argument("--root", type=Path, default=Path("."), help="project root used to locate .env.docagent")
+    config.add_argument("--env", type=Path, help="explicit dedicated environment file")
+    config.add_argument("--json", action="store_true", help="write a redacted JSON summary")
+    config.set_defaults(handler=_run_config)
     return parser
 
 
