@@ -32,6 +32,13 @@ from .environment import (
     render_environment_json,
     render_environment_text,
 )
+from .entry_audit import (
+    EntryAuditError,
+    audit_entry,
+    render_entry_audit_json,
+    render_entry_audit_markdown,
+    render_entry_audit_text,
+)
 from .gate import GateError, GateMismatch, build_gate_record, verify_gate, write_gate
 from .profile import DEFAULT_PROFILE_NAME, ProfileConfigError, load_profile
 from .report import render_delta_markdown, render_delta_text, render_json, render_markdown, render_text
@@ -270,6 +277,68 @@ def _run_scan(args: argparse.Namespace) -> int:
     return gate_code
 
 
+def _entry_audit_exit_code(report: dict[str, Any], fail_on: str) -> int:
+    differences = report["differences"]
+    if fail_on.startswith("R"):
+        return int(any(item["code"].startswith(fail_on + "_") for item in differences))
+    if fail_on == "info":
+        return int(bool(differences))
+    if fail_on == "warn":
+        return int(any(item["level"] in {"warn", "error"} for item in differences))
+    if fail_on == "error":
+        return int(any(item["level"] == "error" for item in differences))
+    return 0
+
+
+def _run_entry_audit(args: argparse.Namespace) -> int:
+    environment = None
+    try:
+        environment = _environment_for_args(args, args.root)
+        report = audit_entry(
+            args.root,
+            doc=args.doc,
+            entry=args.entry,
+            anchor=args.anchor,
+            occurrence=args.occurrence,
+            evidence=args.evidence,
+            rules_path=args.rules,
+            profile=_profile_for_args(args, environment),
+        )
+        output = _artifact_target(args.output, args, report, "output")
+        if args.json:
+            rendered = render_entry_audit_json(report)
+        elif args.markdown:
+            rendered = render_entry_audit_markdown(report)
+        else:
+            rendered = render_entry_audit_text(report)
+        if output is not None:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(
+                render_entry_audit_markdown(report) if args.markdown else render_entry_audit_json(report),
+                encoding="utf-8",
+            )
+    except EnvironmentConfigError as exc:
+        _environment_error(exc)
+        return 2
+    except ProfileConfigError as exc:
+        if environment is not None and args.profile is None:
+            _environment_error(EnvironmentConfigError("DOCAGENT_PROFILE 指向的 profile 不可读取或无效"))
+        else:
+            _configuration_error(exc)
+        return 2
+    except RulesConfigError as exc:
+        _configuration_error(exc)
+        return 2
+    except (EntryAuditError, ScanError, OSError) as exc:
+        print(f"docagent: {exc}", file=sys.stderr)
+        return 2
+
+    sys.stdout.write(rendered)
+    if output is not None:
+        print(f"entry audit: {output}", file=sys.stderr)
+    return _entry_audit_exit_code(report, args.fail_on)
+
+
 def _run_rules(args: argparse.Namespace) -> int:
     if getattr(args, "rules_command", None) == "diff":
         return _run_rules_diff(args)
@@ -463,6 +532,35 @@ def build_parser() -> argparse.ArgumentParser:
     audit = subparsers.add_parser("audit", help="scan and optionally write a structured audit report")
     _add_scan_options(audit, output=True)
     audit.set_defaults(handler=_run_scan)
+
+    entry_audit = subparsers.add_parser(
+        "audit-entry", help="audit one documentation entry or heading anchor against repository evidence",
+    )
+    entry_audit.add_argument("--root", required=True, type=Path, help="target repository root")
+    entry_audit.add_argument("--doc", required=True, type=Path, help="repository-relative Markdown path")
+    selector = entry_audit.add_mutually_exclusive_group(required=True)
+    selector.add_argument("--entry", help="literal text identifying one line or table entry")
+    selector.add_argument("--anchor", help="heading anchor, with or without the leading #")
+    entry_audit.add_argument(
+        "--occurrence", type=_nonnegative_int,
+        help="one-based match number for an otherwise ambiguous --entry selector",
+    )
+    entry_audit.add_argument(
+        "--evidence", action="append", type=Path, default=[],
+        help="required repository-relative evidence path; may be repeated",
+    )
+    entry_audit.add_argument("--rules", type=Path, help="rules file; defaults to project or bundled rules")
+    entry_audit.add_argument("--profile", help="profile name or project profile file path")
+    entry_audit.add_argument("--env", type=Path, help="dedicated .env.docagent path")
+    formats = entry_audit.add_mutually_exclusive_group()
+    formats.add_argument("--json", action="store_true", help="write a JSON report to stdout")
+    formats.add_argument("--markdown", action="store_true", help="write a Markdown report to stdout")
+    entry_audit.add_argument("--output", type=Path, help="write JSON (or Markdown with --markdown) outside docs/")
+    entry_audit.add_argument(
+        "--fail-on", choices=("none", "info", "warn", "error", "R1", "R3"), default="error",
+        help="return 1 when this severity or reused rule is found",
+    )
+    entry_audit.set_defaults(handler=_run_entry_audit)
 
     rules = subparsers.add_parser("rules", help="validate and inspect the ruleset")
     rules.add_argument("--rules", type=Path, help="rules file; defaults to bundled v1 rules")

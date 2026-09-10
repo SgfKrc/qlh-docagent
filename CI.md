@@ -26,6 +26,24 @@ by the historical main-project compatibility entrypoint.
 Keep report files under `build/` or another CI artifact directory, outside the
 configured documentation directory.
 
+For a release-note or acceptance-entry gate, use the non-recursive targeted
+command and bind a machine-readable test artifact explicitly:
+
+```text
+python tools/docagent/run.py audit-entry --root . \
+  --doc docs/release-plan.md --anchor acceptance \
+  --evidence test-results/acceptance.xml --json \
+  --output build/doc-audit/acceptance.json --fail-on warn
+```
+
+This command reads Git and evidence state but never runs the referenced test.
+JSON, JUnit-style XML, and log artifacts up to 2 MiB have their result counts
+checked against the selected claim; invalid, unreadable, and mismatched
+artifacts remain visible differences.
+Missing evidence, completed wording with dirty related files, targeted R1/R3
+signals, and unbound test-count claims appear under `differences`. Use
+`--fail-on none` to collect them without gating, or `warn` for a release gate.
+
 ## Exit codes
 
 | Code | Meaning |

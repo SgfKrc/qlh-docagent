@@ -48,6 +48,7 @@ from .environment import (
     profile_reference,
     public_environment,
 )
+from .entry_audit import ENTRY_AUDIT_SCHEMA_VERSION, EntryAuditError, audit_entry
 from .profile import (
     DEFAULT_PROFILE_NAME,
     PROFILE_SCHEMA_VERSION,
@@ -84,6 +85,8 @@ __all__ = [
     "DocEventStore",
     "EventStoreError",
     "ENVIRONMENT_SCHEMA_VERSION",
+    "ENTRY_AUDIT_SCHEMA_VERSION",
+    "EntryAuditError",
     "EnvironmentConfigError",
     "PROFILE_SCHEMA_VERSION",
     "ProfileConfigError",
@@ -104,6 +107,7 @@ __all__ = [
     "public_environment",
     "report_fingerprint",
     "baseline_from_report",
+    "audit_entry",
     "build_delta",
     "build_gate_record",
     "create_evolution",

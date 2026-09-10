@@ -58,7 +58,8 @@ def _git(args: list[str], root: Path) -> str:
         )
     except (OSError, subprocess.SubprocessError):
         return ""
-    return result.stdout.strip()
+    # Porcelain status uses a meaningful leading space for unstaged changes.
+    return result.stdout.rstrip()
 
 
 def _dirty_doc_paths(root: Path, git_scope: str) -> dict[str, str]:
@@ -199,8 +200,20 @@ def _excluded(relative: str, patterns: list[str]) -> bool:
 
 def scan_document(doc: Path, root: Path, rules: Mapping[str, Any], *,
                   dirty_docs: Mapping[str, str] | None = None,
-                  source_changes: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    text = doc.read_text(encoding="utf-8", errors="replace")
+                  source_changes: list[dict[str, Any]] | None = None,
+                  text_override: str | None = None) -> dict[str, Any]:
+    """Scan one document, optionally limiting content signals to supplied text.
+
+    ``text_override`` is used by the targeted entry auditor.  The document path
+    remains the identity and link base, while R1/R3 inspect only the selected
+    entry plus the document metadata prefix assembled by that caller.
+    """
+    source_text = doc.read_text(encoding="utf-8", errors="replace")
+    text = (
+        text_override
+        if text_override is not None
+        else source_text
+    )
     rel = doc.relative_to(root).as_posix()
     findings: list[dict[str, str]] = []
     status = _status_line(text, rules)
@@ -280,7 +293,7 @@ def scan_document(doc: Path, root: Path, rules: Mapping[str, Any], *,
         "doc": rel,
         "status_line": status[:120],
         "updated_at": updated,
-        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "sha256": hashlib.sha256(source_text.encode("utf-8")).hexdigest(),
         "findings": findings,
     }
 

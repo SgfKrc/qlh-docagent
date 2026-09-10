@@ -7,6 +7,7 @@ python tools/docagent/run.py rules
 python tools/docagent/run.py scan --root G:/path/to/project --fail-on none
 python tools/docagent/run.py scan --root G:/path/to/project --profile minimal --json --fail-on none
 python tools/docagent/run.py audit --root G:/path/to/project --output build/docagent/audit.json
+python tools/docagent/run.py audit-entry --root G:/path/to/project --doc docs/plan.md --anchor delivery
 python tools/docagent/run.py init --root G:/path/to/project
 python tools/docagent/run.py config --root G:/path/to/project
 ```
@@ -54,6 +55,39 @@ migrated M2 adapter.
 For CI conventions, stable exit codes, report formats, and a GitHub Actions example, see [`CI.md`](CI.md).
 
 The dry-run baseline delta is available with `--baseline --dry-run`; it reports `new`, `gone`, `changed`, and `affected_docs`, with optional `--max-new N` and `--max-gone N` gates.
+
+## Targeted entry audit
+
+`audit-entry` checks one explicitly selected Markdown heading section or one
+literal entry line. It does not recurse through the documentation tree and it
+does not execute tests. The report extracts bounded claim lines, reuses R1/R3
+against only the selected content, checks referenced or explicit evidence
+paths, reads Git commit/worktree state, and emits a structured “wording versus
+actual” difference list.
+
+```text
+python tools/docagent/run.py audit-entry --root . \
+  --doc docs/release-plan.md --anchor acceptance \
+  --evidence test-results/acceptance.xml --json --fail-on warn
+
+python tools/docagent/run.py audit-entry --root . \
+  --doc docs/tickets.md --entry DOC-AUDIT-ENTRY-01 --occurrence 2 \
+  --markdown --output build/docagent/entry-audit.md --fail-on none
+```
+
+`--doc` and every explicit `--evidence` value must be repository-relative;
+the document must stay under the profile's `docs_dir`. Ambiguous `--entry`
+matches fail closed unless a one-based `--occurrence` is supplied. `--anchor`
+accepts a GitHub-style heading slug with or without `#`, including duplicate
+heading suffixes such as `-1`. Output files are rejected inside `docs_dir`.
+
+The JSON schema is `qlh.docagent.entry-audit.v1`. `read_only=true` and
+`tests_executed=false` make the evidence boundary explicit: a `12 passed`
+claim without an existing result artifact is reported as `TEST_RESULT_UNBOUND`.
+Small JSON/JUnit XML/log artifacts are parsed and their available counts are
+compared; unreadable or mismatched evidence remains a difference instead of
+being treated as verified. `--fail-on` accepts `none`, `info`, `warn`, `error`,
+`R1`, or `R3`; selector/configuration errors return 2.
 
 Reports include a `report_fingerprint` covering their complete path-free JSON
 content. Generate a CI gate artifact and optionally append an M3 event in one
