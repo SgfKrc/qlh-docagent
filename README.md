@@ -1,6 +1,8 @@
 # docagent
 
-`docagent` is a standalone, standard-library-first, read-only documentation maintenance scanner.
+> **Language**: [English](README.en.md) · [简体中文](README.md)
+
+`docagent` 是一个独立的、以标准库优先的只读文档维护扫描器。
 
 ```text
 python tools/docagent/run.py rules
@@ -12,58 +14,38 @@ python tools/docagent/run.py init --root G:/path/to/project
 python tools/docagent/run.py config --root G:/path/to/project
 ```
 
-The P3B core scans a profile-defined documentation tree recursively using the versioned R1-R5 rules contract. Bundled profiles are `qlh` (the main project's Git-aware layout) and `minimal` (Git checks disabled). A project can run `init` to copy a profile into `.docagent/profile.yaml`, or pass `--profile <name-or-path>` explicitly. `scan` never writes the target repository. `audit --output` may write a report outside the configured documentation directory.
+P3B 内核按 profile 定义的文档树递归扫描，使用版本化的 R1-R5 规则契约。内置 profile 有 `qlh`（主项目的 Git 感知布局）与 `minimal`（关闭 Git 检查）。项目可以运行 `init` 把 profile 复制到 `.docagent/profile.yaml`，也可以显式传 `--profile <名字或路径>`。`scan` 永不写入目标仓库；`audit --output` 可以在配置的文档目录之外写报告。
 
-The main-project compatibility entrypoint is `python scripts/doc_maintenance_audit.py`. Its historical M1 flags delegate to this package and keep writing `build/doc-audit/audit.json` plus `audit.md`; M2/M3 extension flags remain on the legacy implementation until their dedicated adapters are migrated.
+主项目的兼容入口是 `python scripts/doc_maintenance_audit.py`：其历史 M1 参数委托给本包，并继续写 `build/doc-audit/audit.json` 与 `audit.md`；M2/M3 扩展参数在专用适配器迁移完成前仍走旧实现。
 
-## Dedicated environment configuration
+## 专用环境配置
 
-Copy [`.env.docagent.example`](.env.docagent.example) to `.env.docagent` in the
-target repository. The copy is ignored by Git. Docagent never reads the main
-`.env` and never merges `DOCAGENT_*` values from the process environment.
+把 [`.env.docagent.example`](.env.docagent.example) 复制为目标仓库里的 `.env.docagent`（该副本被 Git 忽略）。docagent 从不读取主 `.env`，也从不合并进程环境中的 `DOCAGENT_*` 值。
 
-Validate the file before scanning:
+扫描前先校验该文件：
 
 ```text
 python tools/docagent/run.py config --root .
 python tools/docagent/run.py config --root . --env configs/team.docagent.env --json
 ```
 
-An explicit `--env` is required to exist. Without `--env`, scan/audit remains
-backward-compatible when `.env.docagent` is absent; when the project file is
-present it is loaded and validated fail-closed. Invalid or duplicate fields,
-unsafe URLs, a non-loopback Ollama endpoint, parent-traversing profiles, and an
-incomplete explicitly selected remote provider return exit code 2 with a
-field-level message. Values are never included in errors.
+显式给出的 `--env` 文件必须存在。不带 `--env` 时，`.env.docagent` 缺失不影响 scan/audit 的向后兼容；一旦项目文件存在，就会被加载并 fail-closed 校验。非法或重复字段、不安全 URL、非 loopback 的 Ollama 端点、向上越级的 profile 路径，以及显式选择的远程 provider 配置不完整，都会以退出码 2 和字段级消息返回；错误信息永不包含具体取值。
 
-`DOCAGENT_PROFILE` accepts a bundled name (`qlh` or `minimal`) or a profile
-path relative to the env file. Selection precedence is `--profile`, then
-`DOCAGENT_PROFILE`, then the existing project/bundled default. Pass the same
-env to a scan when it is not located at `<root>/.env.docagent`:
+`DOCAGENT_PROFILE` 接受内置名（`qlh` 或 `minimal`）或相对 env 文件的 profile 路径。选择优先级为 `--profile` > `DOCAGENT_PROFILE` > 既有项目/内置默认。当 env 文件不在 `<root>/.env.docagent` 时，扫描时要显式传入同一个 env：
 
 ```text
 python tools/docagent/run.py scan --root . --env configs/team.docagent.env --json --fail-on none
 ```
 
-`config` reports which non-secret fields came from the file and which defaults
-were applied. `DOCAGENT_DEEPSEEK_API_KEY` is represented only by a configured
-boolean; its value is excluded from object representations, stdout, stderr,
-JSON reports, and scanner reports. The standalone scanner does not initiate an
-LLM request; these provider settings are validated now for the separately
-migrated M2 adapter.
+`config` 会报告哪些非机密字段来自文件、哪些使用了默认值。`DOCAGENT_DEEPSEEK_API_KEY` 仅以"是否已配置"的布尔形式出现；其取值被排除在对象表示、stdout、stderr、JSON 报告与扫描报告之外。独立扫描器不会发起 LLM 请求；这些 provider 设置现在就校验，是为随后单独迁移的 M2 适配器做准备。
 
-For CI conventions, stable exit codes, report formats, and a GitHub Actions example, see [`CI.md`](CI.md).
+CI 约定、稳定退出码、报告格式与 GitHub Actions 示例见 [`CI.md`](CI.md)。
 
-The dry-run baseline delta is available with `--baseline --dry-run`; it reports `new`, `gone`, `changed`, and `affected_docs`, with optional `--max-new N` and `--max-gone N` gates.
+dry-run 基线增量可通过 `--baseline --dry-run` 获得，报告 `new`、`gone`、`changed` 与 `affected_docs`，并可选 `--max-new N`、`--max-gone N` 门。
 
-## Targeted entry audit
+## 定点条目审查
 
-`audit-entry` checks one explicitly selected Markdown heading section or one
-literal entry line. It does not recurse through the documentation tree and it
-does not execute tests. The report extracts bounded claim lines, reuses R1/R3
-against only the selected content, checks referenced or explicit evidence
-paths, reads Git commit/worktree state, and emits a structured “wording versus
-actual” difference list.
+`audit-entry` 只检查**一个**显式选中的 Markdown 标题段或一条字面条目行；它不递归文档树，也不执行测试。报告会抽取有界的声明行，仅对选中内容复用 R1/R3，检查被引用或显式的证据路径，读取 Git 提交/工作区状态，并输出结构化的"表述 vs 实际"差异清单。
 
 ```text
 python tools/docagent/run.py audit-entry --root . \
@@ -75,23 +57,11 @@ python tools/docagent/run.py audit-entry --root . \
   --markdown --output build/docagent/entry-audit.md --fail-on none
 ```
 
-`--doc` and every explicit `--evidence` value must be repository-relative;
-the document must stay under the profile's `docs_dir`. Ambiguous `--entry`
-matches fail closed unless a one-based `--occurrence` is supplied. `--anchor`
-accepts a GitHub-style heading slug with or without `#`, including duplicate
-heading suffixes such as `-1`. Output files are rejected inside `docs_dir`.
+`--doc` 与每个显式 `--evidence` 值都必须是仓库相对路径，且文档必须位于 profile 的 `docs_dir` 之下。`--entry` 匹配到多处时 fail-closed，除非给出 1-based 的 `--occurrence`。`--anchor` 接受 GitHub 风格的标题 slug（带不带 `#` 均可），包含 `-1` 这类重复标题后缀。输出文件若落在 `docs_dir` 内会被拒绝。
 
-The JSON schema is `qlh.docagent.entry-audit.v1`. `read_only=true` and
-`tests_executed=false` make the evidence boundary explicit: a `12 passed`
-claim without an existing result artifact is reported as `TEST_RESULT_UNBOUND`.
-Small JSON/JUnit XML/log artifacts are parsed and their available counts are
-compared; unreadable or mismatched evidence remains a difference instead of
-being treated as verified. `--fail-on` accepts `none`, `info`, `warn`, `error`,
-`R1`, or `R3`; selector/configuration errors return 2.
+JSON schema 为 `qlh.docagent.entry-audit.v1`。`read_only=true` 与 `tests_executed=false` 把证据边界显式化：没有对应结果产物的 `12 passed` 声明会被报告为 `TEST_RESULT_UNBOUND`。较小的 JSON/JUnit XML/日志产物会被解析并比对其可用计数；不可读或不匹配的证据仍记为差异，而不会被当作已验证。`--fail-on` 接受 `none`、`info`、`warn`、`error`、`R1` 或 `R3`；选择器/配置类错误返回 2。
 
-Reports include a `report_fingerprint` covering their complete path-free JSON
-content. Generate a CI gate artifact and optionally append an M3 event in one
-audit invocation:
+报告包含覆盖其完整无路径 JSON 内容的 `report_fingerprint`。可在一次 audit 调用中生成 CI 门产物，并可选追加一条 M3 事件：
 
 ```text
 python tools/docagent/run.py audit --root . --profile qlh --json --fail-on error \
@@ -100,9 +70,7 @@ python tools/docagent/run.py audit --root . --profile qlh --json --fail-on error
   --events build/docagent-gates/events.sqlite
 ```
 
-Verify the report against the rules file and all supplied bindings before
-accepting the artifact. A changed report or rules file returns code 1; a
-malformed artifact or configuration returns code 2:
+在接收产物之前，用规则文件与所有提供的绑定校验报告。报告或规则文件发生变化返回 1；产物或配置畸形返回 2：
 
 ```text
 python tools/docagent/run.py gate verify \
@@ -111,9 +79,7 @@ python tools/docagent/run.py gate verify \
   --gate build/docagent-gates/gate.json
 ```
 
-Rules are reverted through Git, then rescanned against the unchanged baseline.
-The command is an explicit shorthand for the baseline dry-run and must have a
-baseline, so a successful rollback is demonstrated by a zero delta:
+规则经 Git 回退后，再对未变的基线重扫。该命令是基线 dry-run 的显式简写且必须有基线，因此成功的回滚由"零增量"来证明：
 
 ```text
 git revert <rules-change-commit>
@@ -121,11 +87,7 @@ python tools/docagent/run.py gate rescan --root . \
   --baseline build/doc-audit/baseline.json --json --fail-on none
 ```
 
-Rule evolution is gated through `rules evolve`. An agent may prepare a candidate
-rules file, but the candidate is only data: the scanner and validator code are
-not part of this entry point. Every evolution record requires a non-empty
-`change_note`, stores old/new fingerprints and a stable evolution fingerprint,
-and follows `proposed -> preflight -> approved -> released` (or `rejected`).
+规则演进通过 `rules evolve` 设门。agent 可以准备候选规则文件，但候选只是数据：扫描器与校验器代码不在这个入口里。每条演进记录必须带非空 `change_note`，保存新旧指纹与稳定的演进指纹，并遵循 `proposed -> preflight -> approved -> released`（或 `rejected`）。
 
 ```text
 python tools/docagent/run.py rules evolve \
@@ -134,9 +96,4 @@ python tools/docagent/run.py rules evolve \
   --state approved --output build/docagent-gates/evolution.json
 ```
 
-Low-risk vocabulary/parameter changes are auto-approved. New or removed
-`warn`/`error` rules and severity changes stop at `preflight` with exit code 1.
-After review, provide an approval JSON whose
-`evolution_fingerprint` matches the preflight record, then transition the
-record to `approved` and finally to `released`. See [`CI.md`](CI.md) for the
-approval record shape and gate behavior.
+低风险的词表/参数变更自动批准。新增或删除 `warn`/`error` 规则、以及严重级别变更，会停在 `preflight` 并以退出码 1 结束。人工复核后，提供 `evolution_fingerprint` 与 preflight 记录匹配的批准 JSON，再把记录转为 `approved`、最后转为 `released`。批准记录的形状与门的行止见 [`CI.md`](CI.md)。
