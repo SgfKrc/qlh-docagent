@@ -42,4 +42,12 @@ if ($userPath -notlike "*$binDir*") {
 Write-Host "[4/4] 自检:"
 & $shim summary
 Write-Host ""
-Write-Host "完成。命令: patchouli〔TUI〕 / patchouli summary / patchouli json / patchouli setup" -ForegroundColor Magenta
+# 4.5) 安装自带 skill（含本工具体检流程）到项目 skills 目录
+$skillSrc = Join-Path $RepoRoot "tools\docagent\skills\docagent\SKILL.md"
+if (Test-Path $skillSrc) {
+    $skillDst = Join-Path $RepoRoot ".reasonix\skills\docagent"
+    New-Item -ItemType Directory -Force -Path $skillDst | Out-Null
+    Copy-Item $skillSrc (Join-Path $skillDst "SKILL.md") -Force
+    Write-Host "[4.5/4] skill 已同步: $skillDst"
+}
+Write-Host "完成。命令: patchouli〔TUI〕 / patchouli summary / patchouli json / patchouli setup / patchouli lib" -ForegroundColor Magenta
