@@ -6,4 +6,4 @@ PATCH-01：数据层（catalog）已完成——docs/ 扫描与元数据解析�
 from .catalog import classify, parse_document, scan, summarize
 
 __all__ = ["classify", "parse_document", "scan", "summarize"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

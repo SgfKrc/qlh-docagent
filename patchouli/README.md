@@ -61,3 +61,21 @@ docs: 90（archive 10） 票号 510
 ```bash
 python -m pytest tools/docagent/patchouli/tests -q   # 6 passed（含真实仓库冒烟）
 ```
+
+## MCP server（只读 8 工具）
+
+把文档库查询能力暴露给任意 MCP 客户端（Reasonix / Claude / 其他）：
+
+```bash
+python -m patchouli.mcp_server   # stdio JSON-RPC（零第三方，stdout 仅协议消息）
+```
+
+注册示例（`<py>` = 本仓库 `.venv-test\Scripts\python.exe` 或任意已安装本包的解释器）：
+
+```bash
+reasonix mcp add patchouli -- <py> -m patchouli.mcp_server
+claude  mcp add patchouli -- <py> -m patchouli.mcp_server
+```
+
+工具：`catalog_query` · `search_docs` · `read_doc` · `doc_scan` · `audit_entry` · `doc_history` · `catalog_stats` · `lib_list`
+——**全部只读**（`.env.docagent` 写入与文档修改**不通过 MCP 暴露**）。

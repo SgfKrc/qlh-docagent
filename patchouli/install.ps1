@@ -51,3 +51,4 @@ if (Test-Path $skillSrc) {
     Write-Host "[4.5/4] skill 已同步: $skillDst"
 }
 Write-Host "完成。命令: patchouli〔TUI〕 / patchouli summary / patchouli json / patchouli setup / patchouli lib" -ForegroundColor Magenta
+Write-Host "MCP（可选）: reasonix mcp add patchouli -- `"$Python`" -m patchouli.mcp_server" -ForegroundColor Magenta
