@@ -37,10 +37,10 @@ class SplashScreen(ModalScreen):
     """
 
     CSS = """
-    SplashScreen { background: #0b060f 78%; }
-    #splash-box { background: #2e1a3d 94%; border: round #c9a0e8; padding: 1 3; }
-    #splash-logo { color: #e6d4f5; }
-    #splash-line { color: #a37fd0; }
+    SplashScreen { background: #06040a 85%; }
+    #splash-box { border: round white; background: #0d0a10; padding: 1 3; }
+    #splash-logo { background: #0d0a10; color: white; }
+    #splash-line { background: #4a2a5e; color: white; }
     """
 
     def __init__(self, status: str = "启动中…", **kwargs):
