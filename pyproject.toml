@@ -14,7 +14,7 @@ tui = ["textual>=0.80"]
 
 [project.scripts]
 docagent = "docagent.cli:main"
-patchouli = "patchouli.catalog:main"
+patchouli = "patchouli.cli:main"
 patchouli-shelf = "patchouli.bookshelf:main"
 
 [tool.setuptools]

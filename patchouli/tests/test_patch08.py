@@ -31,7 +31,7 @@ def test_splash_forced_loads_and_dismisses(tmp_path: Path) -> None:
     _docs(tmp_path)
 
     async def run() -> None:
-        app = BookshelfApp(tmp_path, splash=True)
+        app = BookshelfApp(tmp_path, splash=True, splash_min=0.0)
         async with app.run_test() as pilot:
             for _ in range(60):
                 await pilot.pause(0.05)

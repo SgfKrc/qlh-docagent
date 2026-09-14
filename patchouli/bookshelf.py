@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import time
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -18,7 +19,7 @@ from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, St
 from .catalog import scan
 from .config_check import env_status
 from .config_editor import ConfigEditor
-from .splash import SplashScreen
+from .splash import SplashScreen, splash_delay
 
 KIND_ORDER = ["decision", "special-plan", "ticket-plan", "report", "guide", "reference", "other"]
 KIND_LABEL = {
@@ -61,10 +62,12 @@ class BookshelfApp(App):
         *[(str(i + 1), f"filter({i})", KIND_LABEL[kind]) for i, kind in enumerate(KIND_ORDER)],
     ]
 
-    def __init__(self, root: Path, splash: bool | None = None, **kwargs):
+    def __init__(self, root: Path, splash: bool | None = None, splash_min: float = 1.0, **kwargs):
         super().__init__(**kwargs)
         self.root = Path(root)
         self._splash_arg = splash
+        self._splash_min = float(splash_min)
+        self._boot_t0 = 0.0
         self.catalog: dict = {}
         self.filter_kind: str | None = None
         self.show_archive = False
@@ -99,6 +102,7 @@ class BookshelfApp(App):
         self.title = "Patchouli 书架"
         use_splash = self._splash_arg if self._splash_arg is not None else not self.is_headless
         if use_splash:
+            self._boot_t0 = time.monotonic()
             self.push_screen(SplashScreen("扫描文档树…"))
             self.run_worker(self._load_async, thread=True, name="boot")
         else:
@@ -111,7 +115,15 @@ class BookshelfApp(App):
     def _finish_load(self, catalog: dict) -> None:
         self.catalog = catalog
         self._apply_filter()
-        if len(self.screen_stack) > 1:  # 关闭 splash（加载完成即关，不额外等待）
+        # 加载完成：快于最小展示则补齐到可感知时长；更慢则不额外等待
+        delay = splash_delay(time.monotonic() - self._boot_t0, self._splash_min)
+        if delay > 0:
+            self.set_timer(delay, self._dismiss_splash)
+        else:
+            self._dismiss_splash()
+
+    def _dismiss_splash(self) -> None:
+        if len(self.screen_stack) > 1:  # 用户可能已按键跳过
             self.pop_screen()
 
     def _check_env(self) -> None:
@@ -372,9 +384,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patchouli 书架 TUI（只读）")
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--no-splash", action="store_true", help="跳过启动动画")
+    parser.add_argument("--splash-time", type=float, default=1.0, help="启动动画最小展示秒数（默认 1.0；加载更慢时不额外等待）")
     args = parser.parse_args(argv)
     splash = False if (args.no_splash or os.environ.get("PATCHOULI_NO_SPLASH") == "1") else None
-    BookshelfApp(args.root.expanduser().resolve(), splash=splash).run()
+    BookshelfApp(args.root.expanduser().resolve(), splash=splash, splash_min=args.splash_time).run()
     return 0
 
 

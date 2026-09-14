@@ -22,12 +22,16 @@
 # 安装（推荐，editable；只需一次）——之后在任意目录可用
 python -m pip install -e tools/patchouli
 
-python -m patchouli --root <repo> --summary   # 馆藏摘要（分类/票号/缺状态行）
-python -m patchouli --root <repo> --json      # 全量结构化（qlh.patchouli.catalog.v1）
-python -m patchouli.bookshelf --root <repo>   # 书架 TUI（↑↓ 选择 · / 检索台 · 1-7 分类 · 0 全部 · a 归档 · c 编目诊断 · h 流转记录 · s 馆藏统计 · v 参数对照 · e 配置编辑 · r 刷新 · q 退出）
+# 统一入口（console script `patchouli`；python -m patchouli 等价）
+patchouli                          # 书架 TUI（非 TTY 自动退回 summary）
+patchouli shelf --root <repo>      # 书架 TUI（显式；键位：↑↓ 选择 · / 检索台 · 1-7 分类 · 0 全部 · a 归档 · c 编目诊断 · h 流转记录 · s 馆藏统计 · v 参数对照 · e 配置编辑 · r 刷新 · q 退出）
+patchouli summary --root <repo>    # 馆藏摘要（分类/票号/缺状态行）
+patchouli json --root <repo>       # 全量结构化（qlh.patchouli.catalog.v1）
+patchouli --root <repo> --summary  # 直通 catalog 参数
 # 检索语法：纯文本（全文）｜ t:PATCH-01（票号）｜ k:report（类型）｜ s:缺（缺状态行）｜ a:（含归档）
 
 # 选项：--no-splash 跳过启动动画（或 PATCHOULI_NO_SPLASH=1）
+#       --splash-time 1.5  启动动画最小展示秒数（默认 1.0；加载更慢时不额外等待）
 
 # 免安装 fallback
 python tools/docagent/patchouli/run.py summary --root <repo>

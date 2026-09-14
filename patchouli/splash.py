@@ -25,6 +25,11 @@ FRAMES = ("/", "-", "\\", "|")
 TICK_SECONDS = 0.10
 
 
+def splash_delay(elapsed: float, min_show: float) -> float:
+    """需补足的等待秒数：加载快于最小展示时补齐（可感知）；加载慢则不额外等待。"""
+    return max(0.0, float(min_show) - float(elapsed))
+
+
 class SplashScreen(ModalScreen):
     """启动屏：logo + 旋转 + 加载状态行；任意键跳过。"""
 
