@@ -119,13 +119,15 @@ def summarize(catalog: dict[str, Any]) -> str:
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patchouli catalog (read-only docs scan)")
-    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--root", type=Path, default=None, help="仓库根（缺省：自动解析，见 roots.resolve_root）")
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--no-archive", action="store_true")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    catalog = scan(args.root.expanduser().resolve(), include_archive=not args.no_archive)
+    from .roots import resolve_root
+
+    catalog = scan(resolve_root(args.root), include_archive=not args.no_archive)
     if args.json:
         print(json.dumps(catalog, ensure_ascii=False, indent=2))
     else:

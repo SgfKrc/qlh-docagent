@@ -31,7 +31,17 @@ def splash_delay(elapsed: float, min_show: float) -> float:
 
 
 class SplashScreen(ModalScreen):
-    """启动屏：logo + 旋转 + 加载状态行；任意键跳过。"""
+    """启动屏：logo + 旋转 + 加载状态行；任意键跳过。
+
+    配色：半透黑底 + 淡紫填充（40K 色孽调：深紫黑/亮紫边框/淡紫文字）。
+    """
+
+    CSS = """
+    SplashScreen { background: #0b060f 78%; }
+    #splash-box { background: #2e1a3d 94%; border: round #c9a0e8; padding: 1 3; }
+    #splash-logo { color: #e6d4f5; }
+    #splash-line { color: #a37fd0; }
+    """
 
     def __init__(self, status: str = "启动中…", **kwargs):
         super().__init__(**kwargs)

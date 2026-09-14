@@ -43,7 +43,6 @@ class BookshelfApp(App):
     #card { height: auto; max-height: 45%; border: solid $accent; padding: 0 1; }
     #preview { border: solid $accent; padding: 0 1; }
     #query { dock: top; display: none; border: solid $accent; }
-    #splash-box { border: solid $accent; padding: 1 2; }
     #editor-box { width: 92%; height: 92%; border: solid $accent; padding: 0 1; }
     #editor-area { height: 1fr; }
     """
@@ -382,12 +381,14 @@ class BookshelfApp(App):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patchouli 书架 TUI（只读）")
-    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--root", type=Path, default=None, help="仓库根（缺省：自动解析，见 roots.resolve_root）")
     parser.add_argument("--no-splash", action="store_true", help="跳过启动动画")
     parser.add_argument("--splash-time", type=float, default=1.0, help="启动动画最小展示秒数（默认 1.0；加载更慢时不额外等待）")
     args = parser.parse_args(argv)
     splash = False if (args.no_splash or os.environ.get("PATCHOULI_NO_SPLASH") == "1") else None
-    BookshelfApp(args.root.expanduser().resolve(), splash=splash, splash_min=args.splash_time).run()
+    from .roots import resolve_root
+
+    BookshelfApp(resolve_root(args.root), splash=splash, splash_min=args.splash_time).run()
     return 0
 
 

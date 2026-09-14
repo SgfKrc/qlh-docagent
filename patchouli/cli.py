@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 
@@ -27,6 +28,19 @@ def main(argv: Any = None) -> int:
         from .catalog import main as catalog_main
 
         return catalog_main(args[1:] + ["--json"])
+    if args and args[0] == "setup":
+        from .roots import resolve_root, write_config
+
+        import argparse as _argparse
+
+        parser = _argparse.ArgumentParser(prog="patchouli setup", description="写入用户默认根配置（~/.patchouli/config.json）")
+        parser.add_argument("--root", type=Path, default=None)
+        ns = parser.parse_args(args[1:])
+        root = resolve_root(ns.root)
+        path = write_config(root)
+        print(f"默认根已写入: {path}")
+        print(f"default_root = {root}")
+        return 0
     if args and args[0] in {"help", "-h", "--help"}:
         print(__doc__)
         return 0
