@@ -29,7 +29,7 @@ DEFAULTS = {
     "DOCAGENT_PROVIDER": "ollama",
     "DOCAGENT_PROFILE": "qlh",
     "DOCAGENT_DEEPSEEK_BASE_URL": "https://opencode.ai/zen/go/v1",
-    "DOCAGENT_DEEPSEEK_MODEL": "deepseek-v4-flash",
+    "DOCAGENT_DEEPSEEK_MODEL": "deepseek-flash",
     "DOCAGENT_DEEPSEEK_API_KEY": "",
     "DOCAGENT_OLLAMA_BASE_URL": "http://127.0.0.1:11434/v1",
     "DOCAGENT_OLLAMA_MODEL": "gemma4:12b",

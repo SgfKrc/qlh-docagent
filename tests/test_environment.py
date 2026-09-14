@@ -67,7 +67,7 @@ def test_remote_key_never_appears_in_repr_or_public_json(tmp_path):
         tmp_path / ".env.docagent",
         "DOCAGENT_PROVIDER=opencode\n"
         "DOCAGENT_DEEPSEEK_BASE_URL=https://example.invalid/v1\n"
-        "DOCAGENT_DEEPSEEK_MODEL=deepseek-v4-flash\n"
+        "DOCAGENT_DEEPSEEK_MODEL=deepseek-flash\n"
         f"DOCAGENT_DEEPSEEK_API_KEY={secret}\n",
     )
 
@@ -202,7 +202,7 @@ def test_config_cli_json_is_redacted(capsys, tmp_path):
         "DOCAGENT_PROVIDER=opencode\n"
         "DOCAGENT_PROFILE=minimal\n"
         "DOCAGENT_DEEPSEEK_BASE_URL=https://example.invalid/v1\n"
-        "DOCAGENT_DEEPSEEK_MODEL=deepseek-v4-flash\n"
+        "DOCAGENT_DEEPSEEK_MODEL=deepseek-flash\n"
         f"DOCAGENT_DEEPSEEK_API_KEY={secret}\n",
     )
 
