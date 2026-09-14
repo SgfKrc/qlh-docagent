@@ -20,27 +20,33 @@ LOGO = r"""
 / ___/ (_| | || (_| || |  __/\_,_|_|_|_|
 \/    \__,_|\__\__|_||_|\___|   v0.1
 """
+_LINES = LOGO.strip("\n").splitlines()
+_MID = (len(_LINES) + 1) // 2
+LOGO_TOP = "\n".join(_LINES[:_MID])  # 标题上半（黑底）
+LOGO_BOTTOM = "\n".join(_LINES[_MID:])  # 标题下半（紫底）
 
 FRAMES = ("/", "-", "\\", "|")
 TICK_SECONDS = 0.10
 
 
 def splash_delay(elapsed: float, min_show: float) -> float:
-    """需补足的等待秒数：加载快于最小展示时补齐（可感知）；加载慢则不额外等待。"""
+    """需补足的等待秒数：加载快于最小展示时补齐（可感知）；加载更慢则不额外等待。"""
     return max(0.0, float(min_show) - float(elapsed))
 
 
 class SplashScreen(ModalScreen):
-    """启动屏：logo + 旋转 + 加载状态行；任意键跳过。
+    """启动屏：标题「上黑下紫」+ 窄紫条转圈状态行；任意键跳过。
 
-    配色：半透黑底 + 淡紫填充（40K 色孽调：深紫黑/亮紫边框/淡紫文字）。
+    配色：纯黑屏底 + 白色圆角框；标题文字块上黑（#0d0a10）下紫（#7b4fc0）；
+    状态行窄紫条（3 行，spinner 转圈）。
     """
 
     CSS = """
     SplashScreen { background: #000000 90%; }
-    #splash-box { border: round white; background: #0d0a10; padding: 0; height: 17; }
-    #splash-logo { background: #0d0a10; color: white; padding: 1 3; height: auto; }
-    #splash-line { background: #7b4fc0; color: white; height: 1fr; content-align: center middle; }
+    #splash-box { border: round white; background: #0d0a10; padding: 1 3 0 3; height: auto; }
+    #splash-logo-top { background: #0d0a10; color: white; width: auto; }
+    #splash-logo-bottom { background: #7b4fc0; color: white; width: auto; }
+    #splash-line { background: #7b4fc0; color: white; height: 3; margin-top: 1; content-align: center middle; }
     """
 
     def __init__(self, status: str = "启动中…", **kwargs):
@@ -52,7 +58,8 @@ class SplashScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with Center():
             with Vertical(id="splash-box"):
-                yield Static(LOGO, id="splash-logo", markup=False)
+                yield Static(LOGO_TOP, id="splash-logo-top", markup=False)
+                yield Static(LOGO_BOTTOM, id="splash-logo-bottom", markup=False)
                 yield Static("", id="splash-line", markup=False)
 
     def on_mount(self) -> None:
