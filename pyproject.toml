@@ -4,17 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qlh-docagent"
-version = "0.2.0"
-description = "Read-only, data-driven documentation maintenance scanner"
+version = "0.3.0"
+description = "Read-only, data-driven documentation maintenance scanner (+ Patchouli TUI)"
 requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+tui = ["textual>=0.80"]
+
 [project.scripts]
 docagent = "docagent.cli:main"
+patchouli = "patchouli.catalog:main"
+patchouli-shelf = "patchouli.bookshelf:main"
 
 [tool.setuptools]
 include-package-data = false
-packages = ["docagent"]
+packages = ["docagent", "patchouli"]
 
 [tool.setuptools.package-data]
 docagent = ["data/*.yaml", "data/profiles/*.yaml"]

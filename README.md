@@ -97,3 +97,12 @@ python tools/docagent/run.py rules evolve \
 ```
 
 低风险的词表/参数变更自动批准。新增或删除 `warn`/`error` 规则、以及严重级别变更，会停在 `preflight` 并以退出码 1 结束。人工复核后，提供 `evolution_fingerprint` 与 preflight 记录匹配的批准 JSON，再把记录转为 `approved`、最后转为 `released`。批准记录的形状与门的行止见 [`CI.md`](CI.md)。
+
+## Patchouli TUI（交互书架）
+
+`patchouli/` 为本仓库的只读交互前端（Textual）：书架浏览 / 全文与票号检索 / 编目诊断（委托本仓库 `scan`）/ 流通记录（git log）/ 馆藏统计 / RAG 参数对照 / 启动动画与 `.env.docagent` 检测引导与编辑。
+
+```bash
+python -m pip install -e .
+python -m patchouli.bookshelf --root <repo>   # 详见 patchouli/README.md
+```
