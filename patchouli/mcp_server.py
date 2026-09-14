@@ -17,6 +17,7 @@ stdout 只输出协议消息，日志一律走 stderr。
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -60,6 +61,7 @@ TOOL_DEFS: list[dict[str, Any]] = [
                 "query": {"type": "string", "description": "查询（如『缓存』或『t:PATCH-01』）"},
                 "top_k": {"type": "integer", "description": "最多结果数（默认 10）"},
                 "context": {"type": "boolean", "description": "附带每条命中行的上下文片段"},
+                "plain": {"type": "boolean", "description": "去掉 markdown 标记符号并压缩空白（降低上下文符号密度）"},
             },
             "required": ["query"],
         },
@@ -76,6 +78,7 @@ TOOL_DEFS: list[dict[str, Any]] = [
                 "line_start": {"type": "integer"},
                 "line_end": {"type": "integer"},
                 "max_chars": {"type": "integer", "description": "截断上限（默认 20000）"},
+                "plain": {"type": "boolean", "description": "去掉 markdown 标记符号并压缩空白（降低上下文符号密度）"},
             },
             "required": ["path"],
         },
@@ -128,6 +131,29 @@ TOOL_DEFS: list[dict[str, Any]] = [
 # --------------------------------------------------------------------------- #
 # 工具实现（薄包装既有引擎；全部只读）
 # --------------------------------------------------------------------------- #
+_PLAIN_RULES = (
+    (re.compile(r"\*\*|__|`"), ""),          # 强调与行内代码标记
+    (re.compile(r"^\s*#{1,6}\s*", re.M), ""),  # 标题井号
+    (re.compile(r"^\s*>+\s?", re.M), ""),     # 引用符
+    (re.compile(r"^\s*[-*_]{3,}\s*$", re.M), ""),  # 分隔线
+    (re.compile(r"\|"), " "),                 # 表格竖线
+    (re.compile(r"[ 	]+"), " "),             # 水平空白压缩
+    (re.compile(r"\n{3,}"), "\n\n"),          # 空行压缩
+)
+
+
+def plain_text(text: str) -> str:
+    """去掉 markdown 标记符号（强调/井号/引用/分隔线/表格线）并压缩空白。
+
+    目的：降低交给调用方上下文的**符号密度**——高符号密度长上下文会显著提高
+    长会话的复读退化概率（2026-09-15 排查结论）。路径等标识字段不在此列。
+    """
+    out = str(text)
+    for pattern, repl in _PLAIN_RULES:
+        out = pattern.sub(repl, out)
+    return out.strip()
+
+
 def _resolve(args: dict[str, Any]) -> dict[str, Any]:
     from .roots import resolve_library
 
@@ -188,10 +214,16 @@ def h_search_docs(args: dict[str, Any]) -> dict[str, Any]:
     query = str(args["query"])
     top_k = int(args.get("top_k", 10))
     results = search_docs(resolved["root"], catalog, query, limit=top_k)
+    if args.get("plain"):
+        results = [
+            {**r, "line": plain_text(r.get("line", "")), "name": plain_text(r.get("name", ""))}
+            for r in results
+        ]
     if args.get("context") and results:
         first = results[0]
         if first["line_no"]:
-            first = dict(first, context=context_snippet(resolved["root"], first["path"], first["line_no"]))
+            snippet = context_snippet(resolved["root"], first["path"], first["line_no"])
+            first = dict(first, context=plain_text(snippet) if args.get("plain") else snippet)
             results = [first, *results[1:]]
     return {"query": query, "count": len(results), "results": results}
 
@@ -217,6 +249,8 @@ def h_read_doc(args: dict[str, Any]) -> dict[str, Any]:
         start = max(1, int(args["line_start"]))
         end = int(args.get("line_end") or start + 200)
         text = "\n".join(lines[start - 1 : end])
+    if args.get("plain"):
+        text = plain_text(text)
     max_chars = int(args.get("max_chars", 20000))
     return {"path": rel, "chars": len(text), "truncated": len(text) > max_chars, "text": text[:max_chars]}
 

@@ -129,3 +129,27 @@ def test_stdio_end_to_end() -> None:
     assert len(responses[1]["result"]["tools"]) == 8
     stats = json.loads(responses[2]["result"]["content"][0]["text"])
     assert stats["total"] >= 70
+
+
+def test_plain_option_strips_markdown_marks(tmp_path: Path) -> None:
+    """plain=true 去掉 markdown 标记符号（降低上下文符号密度；2026-09-15 排查）。"""
+    NL = chr(10)
+    _fixture(tmp_path)
+    root = str(tmp_path)
+    marked = (tmp_path / "docs" / "甲专项计划.md")
+    marked.write_text("# 甲" + NL + NL + "> 状态：**现行**" + NL + NL + "正文 **加粗** 与 `code`。" + NL, encoding="utf-8")
+
+    raw = _call("read_doc", {"root": root, "path": "docs/甲专项计划.md"})
+    assert "**现行**" in raw["text"]
+
+    plain = _call("read_doc", {"root": root, "path": "docs/甲专项计划.md", "plain": True})
+    assert "**" not in plain["text"] and "`" not in plain["text"]
+    assert ">" not in plain["text"]
+    assert "现行" in plain["text"] and "加粗" in plain["text"]  # 内容保留
+
+
+def test_plain_option_in_schema() -> None:
+    props = {t["name"]: t["inputSchema"].get("properties", {}) for t in TOOL_DEFS}
+    assert "plain" in props["search_docs"]
+    assert "plain" in props["read_doc"]
+    assert "plain" not in props["catalog_stats"]
