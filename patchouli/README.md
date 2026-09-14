@@ -19,8 +19,9 @@
 ## 用法
 
 ```bash
-# 安装（推荐，editable；只需一次）——之后在任意目录可用
-python -m pip install -e tools/patchouli
+# 安装（一键，npm 式：editable + 全局命令 + 默认根配置 + 自检；幂等可重跑）
+powershell -ExecutionPolicy Bypass -File tools/docagent/patchouli/install.ps1
+# 或手动两步：python -m pip install -e tools/docagent && python -m patchouli setup
 
 # 统一入口（console script `patchouli`；python -m patchouli 等价）
 patchouli                          # 书架 TUI（非 TTY 自动退回 summary）
@@ -37,6 +38,8 @@ patchouli --root <repo> --summary  # 直通 catalog 参数
 python tools/docagent/patchouli/run.py summary --root <repo>
 python tools/docagent/patchouli/run.py shelf --root <repo>
 ```
+
+> **任意目录可用**：`patchouli` 缺省自动解析仓库根（优先级：`--root` > `PATCHOULI_ROOT` > 当前目录上溯含 `docs/` > `~/.patchouli/config.json` 的 `default_root`）。
 
 > **依赖边界**：Patchouli 是**开发期工具**（与 docagent 同级），书架 TUI 允许 Textual；
 > **引擎产品 TUI（`qlh chat`）仍遵守零第三方依赖基调**（见主仓《QLH-TUI跨平台基调》），两者定位不同。
