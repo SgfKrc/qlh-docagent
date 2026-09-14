@@ -8,7 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from patchouli.bookshelf import KIND_ORDER, BookshelfApp  # noqa: E402
-from textual.widgets import ListView  # noqa: E402
+from textual.containers import VerticalScroll  # noqa: E402
+from textual.widgets import ListView, Static  # noqa: E402
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -68,3 +69,23 @@ def test_bookshelf_missing_status_marked(tmp_path: Path) -> None:
 
 def test_kind_order_covers_labels() -> None:
     assert "other" in KIND_ORDER and "decision" in KIND_ORDER
+
+
+NL = chr(10)
+def test_preview_shows_full_text_and_detail_scrolls(tmp_path: Path) -> None:
+    """回归（用户报告：右下角文档只能看一部分、无法翻页）——预览不截断 + 详情区可滚动。"""
+    lines = NL.join(f"第 {i} 行内容" for i in range(1, 201))
+    _write(tmp_path, "docs/长文档专项计划.md", f"# 长文档{NL}> 状态：现行{NL}> 更新日期：2026-09-15{NL}{NL}{lines}{NL}")
+
+    async def run() -> None:
+        app = BookshelfApp(tmp_path, splash=False)
+        async with app.run_test(size=(100, 24)) as pilot:
+            await pilot.pause(0.3)
+            app.query_one("#shelf", ListView).focus()
+            await pilot.press("down")
+            await pilot.pause(0.2)
+            assert "第 200 行内容" in app.preview_text  # 全文可及（不再 60 行截断）
+            detail = app.query_one("#detail", VerticalScroll)
+            assert detail.max_scroll_y > 0  # 详情区可滚动看到全文
+
+    asyncio.run(run())

@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, Static
 
 from .catalog import scan
@@ -39,9 +39,9 @@ class BookshelfApp(App):
 
     CSS = """
     #shelf { width: 38%; border: solid $accent; }
-    #detail { width: 62%; }
+    #detail { width: 62%; height: 1fr; }
     #card { height: auto; max-height: 45%; border: solid $accent; padding: 0 1; }
-    #preview { border: solid $accent; padding: 0 1; }
+    #preview { height: auto; border: solid $accent; padding: 0 1; }
     #query { dock: top; display: none; border: solid $accent; }
     #editor-box { width: 92%; height: 92%; border: solid $accent; padding: 0 1; }
     #editor-area { height: 1fr; }
@@ -93,7 +93,7 @@ class BookshelfApp(App):
         yield Input(placeholder="检索：文本 / t:票号 / k:类型 / s:缺 / a:含归档 → Enter", id="query", disabled=True)
         with Horizontal():
             yield ListView(id="shelf")
-            with Vertical(id="detail"):
+            with VerticalScroll(id="detail"):
                 yield Static("选中文档查看信息", id="card", markup=False)
                 yield Static("预览", id="preview", markup=False)
         yield Footer()
@@ -185,8 +185,8 @@ class BookshelfApp(App):
         card.update("\n".join(rows))
         try:
             text = (self.root / entry["path"]).read_text(encoding="utf-8", errors="replace")
-            preview.update("\n".join(text.splitlines()[:PREVIEW_LINES]))
             self.preview_text = text
+            preview.update(text)
         except OSError as exc:  # noqa: BLE001
             preview.update(f"读取失败: {exc!r}")
             self.preview_text = ""
