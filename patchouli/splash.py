@@ -1,10 +1,13 @@
-"""PATCH-08 启动动画（splash）——硬约束：不延迟启动。
+"""PATCH-08 启动动画（splash v5）——逐格半块像素字 + 扫描线 + 打字机。
 
-- 动画与数据加载**并行**：splash 只覆盖真实加载耗时（启动时长 = max(首帧, 加载)，
-  不额外增加等待）；加载完成即自动关闭。
-- **任意键跳过**（立即进主界面）；**非 TTY（headless/测试）自动跳过**；
-  `--no-splash` / `PATCHOULI_NO_SPLASH=1` 强制关闭。
-零第三方（除 Textual 本体）。
+视觉设计（色孽配色：紫 #7b4fc0 / 黑 #0d0a10 / 白）：
+- 标题 "PATCHOULI" 用 **▀ 半块字符逐格上色**：每个像素格 = 上半黑 / 下半紫
+  （`▀` fg=#0d0a10 on bg=#7b4fc0）——**颜色贴合字形、无底色溢出**；
+  字形最底行像素用白色（上白下紫）作为**下沿白描边**；
+- 动画（极客 + Undertale 风）：打字机逐列显现 + **扫描线**（亮紫半块自上下扫）；
+- 状态行：窄紫条（3 行）+ spinner 转圈；任意键跳过。
+
+硬约束不变：与数据加载并行、加载完即关（不延长启动）；--no-splash 可关。
 """
 from __future__ import annotations
 
@@ -13,20 +16,27 @@ from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-LOGO = r"""
-   ___       _      _                 _ _
-  / _ \__ _| |_ __| |_  ___ _  _| | (_)
- / /_)/ _` |  _/ _| ' \/ _ \ || | | | |
-/ ___/ (_| | || (_| || |  __/\_,_|_|_|_|
-\/    \__,_|\__\__|_||_|\___|   v0.1
-"""
-_LINES = LOGO.strip("\n").splitlines()
-_MID = (len(_LINES) + 1) // 2
-LOGO_TOP = "\n".join(_LINES[:_MID])  # 标题上半（黑底）
-LOGO_BOTTOM = "\n".join(_LINES[_MID:])  # 标题下半（紫底）
+# ---- 5x3 像素字形（# 实心）----
+GLYPHS: dict[str, list[str]] = {
+    "P": ["###", "#.#", "###", "#..", "#.."],
+    "A": ["###", "#.#", "###", "#.#", "#.#"],
+    "T": ["###", ".#.", ".#.", ".#.", ".#."],
+    "C": ["###", "#..", "#..", "#..", "###"],
+    "H": ["#.#", "#.#", "###", "#.#", "#.#"],
+    "O": ["###", "#.#", "#.#", "#.#", "###"],
+    "U": ["#.#", "#.#", "#.#", "#.#", "###"],
+    "L": ["#..", "#..", "#..", "#..", "###"],
+    "I": ["###", ".#.", ".#.", ".#.", "###"],
+}
 
-FRAMES = ("/", "-", "\\", "|")
-TICK_SECONDS = 0.10
+COLOR_TOP = "#0d0a10"     # 像素上半：黑
+COLOR_BOTTOM = "#7b4fc0"  # 像素下半：紫（色孽）
+COLOR_SCAN = "#c9a0ff"    # 扫描线：亮紫
+COLOR_EDGE = "white"      # 下沿描边：白
+UPPER = "\u2580"          # ▀ 上半块（fg 占上半、bg 占下半）
+
+WORD = "PATCHOULI"
+GRID_H = 5
 
 
 def splash_delay(elapsed: float, min_show: float) -> float:
@@ -34,18 +44,67 @@ def splash_delay(elapsed: float, min_show: float) -> float:
     return max(0.0, float(min_show) - float(elapsed))
 
 
-class SplashScreen(ModalScreen):
-    """启动屏：标题「上黑下紫」+ 窄紫条转圈状态行；任意键跳过。
+def _build_grid(word: str = WORD) -> list[list[str]]:
+    """字形网格（F=实心，空=透明）；不含膨胀描边（颜色贴合字形）。"""
+    width = len(word) * 4 - 1
+    grid = [[" "] * width for _ in range(GRID_H)]
+    for i, ch in enumerate(word):
+        glyph = GLYPHS[ch]
+        for r in range(GRID_H):
+            for c in range(3):
+                if glyph[r][c] == "#":
+                    grid[r][i * 4 + c] = "F"
+    return grid
 
-    配色：纯黑屏底 + 白色圆角框；标题文字块上黑（#0d0a10）下紫（#7b4fc0）；
-    状态行窄紫条（3 行，spinner 转圈）。
-    """
+
+GRID = _build_grid()
+GRID_W = len(GRID[0])
+GRID_ROWS = len(GRID)
+LAST_ROW = GRID_ROWS - 1
+
+
+def _style_for(row: int, scan_row: int) -> str:
+    if row == scan_row:
+        return f"{COLOR_SCAN} on {COLOR_BOTTOM}"
+    if row == LAST_ROW:
+        return f"{COLOR_EDGE} on {COLOR_BOTTOM}"
+    return f"{COLOR_TOP} on {COLOR_BOTTOM}"
+
+
+def render_logo_markup(grid: list[list[str]], scan_row: int = -1, revealed_cols: int = 10**9) -> str:
+    """网格 → Textual markup（RLE 合并同色）：打字机（revealed_cols）+ 扫描线（scan_row）。"""
+    rows = []
+    for r in range(len(grid)):
+        style = _style_for(r, scan_row)
+        parts: list[str] = []
+        run = 0
+        for c in range(len(grid[0])):
+            if grid[r][c] == "F" and c < revealed_cols:
+                run += 1
+            else:
+                if run:
+                    parts.append(f"[{style}]{UPPER * run}[/]")
+                    run = 0
+                parts.append(" ")
+        if run:
+            parts.append(f"[{style}]{UPPER * run}[/]")
+        rows.append("".join(parts))
+    return "\n".join(rows)
+
+
+FRAMES = ("/", "-", "\\", "|")
+TICK_SECONDS = 0.08
+TYPING_COLS_PER_TICK = 3
+SCAN_STEP_TICKS = 2  # 每 2 tick 扫描线下移一行
+
+
+class SplashScreen(ModalScreen):
+    """启动屏：PATCHOULI 半块像素字（上黑下紫、底沿白）+ 扫描线 + 窄紫条。"""
 
     CSS = """
     SplashScreen { background: #000000 90%; }
-    #splash-box { border: round white; background: #0d0a10; padding: 1 3 0 3; height: auto; }
-    #splash-logo-top { background: #0d0a10; color: white; width: auto; }
-    #splash-logo-bottom { background: #7b4fc0; color: white; width: auto; }
+    #splash-box { border: round white; background: #0d0a10; padding: 0 3; height: auto; }
+    #splash-logo { width: auto; margin: 1 0 0 0; }
     #splash-line { background: #7b4fc0; color: white; height: 3; margin-top: 1; content-align: center middle; }
     """
 
@@ -58,8 +117,7 @@ class SplashScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with Center():
             with Vertical(id="splash-box"):
-                yield Static(LOGO_TOP, id="splash-logo-top", markup=False)
-                yield Static(LOGO_BOTTOM, id="splash-logo-bottom", markup=False)
+                yield Static(render_logo_markup(GRID, -1, TYPING_COLS_PER_TICK * 2), id="splash-logo")
                 yield Static("", id="splash-line", markup=False)
 
     def on_mount(self) -> None:
@@ -67,11 +125,17 @@ class SplashScreen(ModalScreen):
         self._timer = self.set_interval(TICK_SECONDS, self._tick)
 
     def _tick(self) -> None:
-        self._frame = (self._frame + 1) % len(FRAMES)
+        self._frame += 1
+        revealed = min(GRID_W, TYPING_COLS_PER_TICK * (self._frame + 2))
+        scan_row = int(self._frame / SCAN_STEP_TICKS) % GRID_ROWS if revealed >= GRID_W else -1
+        try:
+            self.query_one("#splash-logo", Static).update(render_logo_markup(GRID, scan_row, revealed))
+        except Exception:  # noqa: BLE001 — 屏幕已卸载
+            pass
         self._render_line()
 
     def _render_line(self) -> None:
-        spin = FRAMES[self._frame]
+        spin = FRAMES[self._frame % len(FRAMES)]
         try:
             self.query_one("#splash-line", Static).update(f"  [{spin}] {self.status_text}    （任意键跳过）")
         except Exception:  # noqa: BLE001 — 屏幕已卸载
