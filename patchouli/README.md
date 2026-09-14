@@ -39,7 +39,11 @@ python tools/docagent/patchouli/run.py summary --root <repo>
 python tools/docagent/patchouli/run.py shelf --root <repo>
 ```
 
-> **任意目录可用**：`patchouli` 缺省自动解析仓库根（优先级：`--root` > `PATCHOULI_ROOT` > 当前目录上溯含 `docs/` > `~/.patchouli/config.json` 的 `default_root`）。
+**通用文档库**（不绑定任何项目）：
+- 文档目录自动探测：`docs/` > `documentation/` > `doc/` > 目录本身（≥3 个 md）；`--docs` 可显式指定；
+- 库解析优先级：`--root` > `--lib`（注册库） > `PATCHOULI_ROOT` > 当前目录上溯 > `~/.patchouli/config.json` 默认根；
+- 多库管理：`patchouli lib add <库根> [--name N]` / `patchouli lib list` / `patchouli lib remove <N>`，调用：`patchouli summary --lib <N>`；
+- docagent 定位：已安装（`python -m docagent`）优先，退回 `<库根>/tools/docagent/run.py`。
 
 > **依赖边界**：Patchouli 是**开发期工具**（与 docagent 同级），书架 TUI 允许 Textual；
 > **引擎产品 TUI（`qlh chat`）仍遵守零第三方依赖基调**（见主仓《QLH-TUI跨平台基调》），两者定位不同。

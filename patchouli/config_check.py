@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .roots import docagent_cmd
+
 ENV_NAME = ".env.docagent"
 DEFAULT_TIMEOUT = 60
 
@@ -70,12 +72,12 @@ def env_template(root: Path) -> str:
 
 def validate_env(root: Path, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
     """docagent config --json（脱敏）；fail-soft。"""
-    runner = Path(root) / "tools" / "docagent" / "run.py"
-    if not runner.is_file():
-        return {"ok": False, "error": "docagent run.py not found"}
+    cmd = docagent_cmd(Path(root))
+    if cmd is None:
+        return {"ok": False, "error": "docagent 不可用（未安装且无 tools/docagent/run.py）"}
     try:
         proc = subprocess.run(
-            [sys.executable, str(runner), "config", "--root", str(root), "--json"],
+            [*cmd, "config", "--root", str(root), "--json"],
             cwd=root,
             capture_output=True,
             text=True,

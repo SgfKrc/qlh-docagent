@@ -36,7 +36,8 @@ def test_summarize_scan_counts() -> None:
 
 
 def test_run_scan_missing_runner(tmp_path: Path) -> None:
-    result = run_scan(tmp_path)
+    with patch("patchouli.catalog_diag.docagent_cmd", return_value=None):
+        result = run_scan(tmp_path)
     assert result["ok"] is False and "docagent not found" in result["error"]
 
 

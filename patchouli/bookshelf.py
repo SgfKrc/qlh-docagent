@@ -61,9 +61,10 @@ class BookshelfApp(App):
         *[(str(i + 1), f"filter({i})", KIND_LABEL[kind]) for i, kind in enumerate(KIND_ORDER)],
     ]
 
-    def __init__(self, root: Path, splash: bool | None = None, splash_min: float = 1.0, **kwargs):
+    def __init__(self, root: Path, splash: bool | None = None, splash_min: float = 1.0, docs_dir: Path | None = None, **kwargs):
         super().__init__(**kwargs)
         self.root = Path(root)
+        self._docs_dir = docs_dir
         self._splash_arg = splash
         self._splash_min = float(splash_min)
         self._boot_t0 = 0.0
@@ -109,7 +110,7 @@ class BookshelfApp(App):
         self._check_env()
 
     def _load_async(self) -> None:
-        self.call_from_thread(self._finish_load, scan(self.root, include_archive=True))
+        self.call_from_thread(self._finish_load, scan(self.root, docs_dir=self._docs_dir, include_archive=True))
 
     def _finish_load(self, catalog: dict) -> None:
         self.catalog = catalog
@@ -144,7 +145,7 @@ class BookshelfApp(App):
 
     # ---- data ----
     def action_reload(self) -> None:
-        self.catalog = scan(self.root, include_archive=True)
+        self.catalog = scan(self.root, docs_dir=self._docs_dir, include_archive=True)
         self._apply_filter()
 
     def _apply_filter(self) -> None:
@@ -381,14 +382,17 @@ class BookshelfApp(App):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patchouli 书架 TUI（只读）")
-    parser.add_argument("--root", type=Path, default=None, help="仓库根（缺省：自动解析，见 roots.resolve_root）")
+    parser.add_argument("--root", type=Path, default=None, help="库根（缺省：自动解析）")
+    parser.add_argument("--lib", type=str, default=None, help="已注册库名（patchouli lib add）")
+    parser.add_argument("--docs", type=Path, default=None, help="显式文档目录（覆盖探测）")
     parser.add_argument("--no-splash", action="store_true", help="跳过启动动画")
     parser.add_argument("--splash-time", type=float, default=1.0, help="启动动画最小展示秒数（默认 1.0；加载更慢时不额外等待）")
     args = parser.parse_args(argv)
     splash = False if (args.no_splash or os.environ.get("PATCHOULI_NO_SPLASH") == "1") else None
-    from .roots import resolve_root
+    from .roots import resolve_library
 
-    BookshelfApp(resolve_root(args.root), splash=splash, splash_min=args.splash_time).run()
+    resolved = resolve_library(args.root, lib=args.lib)
+    BookshelfApp(resolved["root"], docs_dir=args.docs or resolved["docs_dir"], splash=splash, splash_min=args.splash_time).run()
     return 0
 
 

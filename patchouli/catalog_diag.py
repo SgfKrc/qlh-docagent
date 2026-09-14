@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .roots import docagent_cmd
+
 DEFAULT_TIMEOUT = 180
 
 
@@ -49,19 +51,19 @@ def summarize_scan(payload: dict[str, Any]) -> dict[str, Any]:
 def run_scan(repo_root: Path, timeout: int = DEFAULT_TIMEOUT) -> dict[str, Any]:
     """运行 docagent scan；任何失败都 fail-soft 为 {"ok": False, "error": ...}。"""
     repo_root = Path(repo_root)
-    runner = find_docagent(repo_root)
-    if runner is None:
+    cmd = docagent_cmd(repo_root)
+    if cmd is None:
         return {
             "ok": False,
             "docs": 0,
             "by_rule": {},
             "by_level": {},
             "findings": [],
-            "error": f"docagent not found: {repo_root / 'tools' / 'docagent' / 'run.py'}",
+            "error": "docagent not found (neither `python -m docagent` nor `<root>/tools/docagent/run.py`)",
         }
     try:
         proc = subprocess.run(
-            [sys.executable, str(runner), "scan", "--root", str(repo_root), "--json"],
+            [*cmd, "scan", "--root", str(repo_root), "--json"],
             cwd=repo_root,
             capture_output=True,
             text=True,

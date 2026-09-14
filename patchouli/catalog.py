@@ -82,11 +82,18 @@ def parse_document(path: Path, root: Path) -> dict[str, Any]:
     return entry
 
 
-def scan(root: Path, *, include_archive: bool = True) -> dict[str, Any]:
+def scan(root: Path, *, docs_dir: Path | None = None, include_archive: bool = True) -> dict[str, Any]:
     root = Path(root)
-    docs = root / "docs"
-    if not docs.is_dir():
-        raise SystemExit(f"docs/ not found under {root}")
+    if docs_dir is not None:
+        docs = Path(docs_dir)
+        if not docs.is_dir():
+            raise SystemExit(f"--docs 不存在: {docs}")
+    else:
+        from .roots import discover_docs_dir
+
+        docs = discover_docs_dir(root)
+        if docs is None:
+            raise SystemExit(f"未探测到文档目录（docs/ 或 ≥3 个 md）: {root}")
     paths: list[Path] = sorted(docs.glob("*.md"))
     if include_archive:
         paths += sorted((docs / "archive").glob("*.md"))
@@ -119,15 +126,18 @@ def summarize(catalog: dict[str, Any]) -> str:
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Patchouli catalog (read-only docs scan)")
-    parser.add_argument("--root", type=Path, default=None, help="仓库根（缺省：自动解析，见 roots.resolve_root）")
+    parser.add_argument("--root", type=Path, default=None, help="库根（缺省：自动解析）")
+    parser.add_argument("--lib", type=str, default=None, help="已注册库名（patchouli lib add）")
+    parser.add_argument("--docs", type=Path, default=None, help="显式文档目录（覆盖探测）")
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--no-archive", action="store_true")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    from .roots import resolve_root
+    from .roots import resolve_library
 
-    catalog = scan(resolve_root(args.root), include_archive=not args.no_archive)
+    resolved = resolve_library(args.root, lib=args.lib)
+    catalog = scan(resolved["root"], docs_dir=args.docs or resolved["docs_dir"], include_archive=not args.no_archive)
     if args.json:
         print(json.dumps(catalog, ensure_ascii=False, indent=2))
     else:

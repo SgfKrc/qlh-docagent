@@ -28,6 +28,29 @@ def main(argv: Any = None) -> int:
         from .catalog import main as catalog_main
 
         return catalog_main(args[1:] + ["--json"])
+    if args and args[0] == "lib":
+        from .roots import add_library, list_libraries, remove_library
+
+        sub = args[1] if len(args) > 1 else "list"
+        if sub == "add" and len(args) > 2:
+            import argparse as _argparse
+
+            parser = _argparse.ArgumentParser(prog="patchouli lib add")
+            parser.add_argument("path")
+            parser.add_argument("--name", default=None)
+            ns = parser.parse_args(args[2:])
+            entry = add_library(ns.path, ns.name)
+            print(f"已注册: {entry['name']} -> {entry['root']}")
+        elif sub == "remove" and len(args) > 2:
+            ok = remove_library(args[2])
+            print("已移除: " + args[2] if ok else f"未找到库: {args[2]}")
+        else:
+            libs = list_libraries()
+            for lib in libs:
+                print(f"- {lib['name']}  {lib['root']}")
+            if not libs:
+                print("（未注册库；patchouli lib add <库根>）")
+        return 0
     if args and args[0] == "setup":
         from .roots import resolve_root, write_config
 

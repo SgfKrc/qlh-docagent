@@ -22,6 +22,7 @@ Write-Host "[1/4] editable 安装完成（tools/docagent）"
 
 # 2) 写用户默认根配置（~/.patchouli/config.json）——任意目录调用不再失焦
 & $Python -c "import sys; sys.path.insert(0, r'$RepoRoot\tools\docagent'); from patchouli.roots import write_config; print('[2/4] 默认根配置:', write_config(r'$RepoRoot'))"
+& $Python -c "import sys; sys.path.insert(0, r'$RepoRoot\tools\docagent'); from patchouli.roots import add_library; print('[2.5/4] 注册库:', add_library(r'$RepoRoot')['name'])"
 
 # 3) 全局命令 shim + PATH 注册（幂等）
 $binDir = Join-Path $env:USERPROFILE "bin"
