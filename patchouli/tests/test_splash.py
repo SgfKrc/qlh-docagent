@@ -55,3 +55,9 @@ def test_splash_delay_contract_kept() -> None:
 def test_typing_speed_and_hold_constants() -> None:
     assert TYPING_COLS_PER_TICK == 3.75  # 打字速度 1.25x
     assert HOLD_TICKS >= 5  # 播完的静止 hold（看清标题）
+
+
+def test_signature_constants() -> None:
+    from patchouli.splash import SIG_CHARS_PER_TICK, SIGNATURE
+    assert SIGNATURE == "Minne ist wân, haz ist tump."
+    assert SIG_CHARS_PER_TICK >= 1

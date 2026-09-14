@@ -97,6 +97,9 @@ def render_logo_markup(grid: list[list[str]], scan_row: int = -1, revealed_cols:
 FRAMES = ("/", "-", "\\", "|")
 TICK_SECONDS = 0.08
 TYPING_COLS_PER_TICK = 3.75  # 打字速度（相对原速 1.25x）
+SIGNATURE = "Minne ist wân, haz ist tump."  # 启动签名（中古高地德语）
+SIG_CHARS_PER_TICK = 2  # 签名流式速度（字符/tick，从左往右）
+SIG_CURSOR = "▌"  # ▌
 SCAN_STEP_TICKS = 2  # 每 2 tick 扫描线下移一行
 HOLD_TICKS = 10  # 扫描完毕后静止 hold（看清标题）
 
@@ -108,6 +111,7 @@ class SplashScreen(ModalScreen):
     SplashScreen { background: #000000 90%; }
     #splash-box { border: round white; background: #0d0a10; padding: 0 3; height: auto; }
     #splash-logo { width: auto; margin: 1 0 0 0; }
+    #splash-sign { color: #a37fd0; height: 1; margin-top: 1; width: 1fr; text-align: center; }
     #splash-line { background: #7b4fc0; color: white; height: 3; margin-top: 1; content-align: center middle; }
     """
 
@@ -120,11 +124,13 @@ class SplashScreen(ModalScreen):
         self._t0: float | None = None
         self._loaded = False
         self._typing_done_frame: int | None = None
+        self._sig_done_frame: int | None = None
 
     def compose(self) -> ComposeResult:
         with Center():
             with Vertical(id="splash-box"):
                 yield Static(render_logo_markup(GRID, -1, TYPING_COLS_PER_TICK * 2), id="splash-logo")
+                yield Static("", id="splash-sign", markup=False)
                 yield Static("", id="splash-line", markup=False)
 
     def on_mount(self) -> None:
@@ -138,6 +144,16 @@ class SplashScreen(ModalScreen):
         typing_done = revealed >= GRID_W
         if typing_done and self._typing_done_frame is None:
             self._typing_done_frame = self._frame
+        sig_revealed = min(len(SIGNATURE), SIG_CHARS_PER_TICK * self._frame)
+        if sig_revealed >= len(SIGNATURE) and self._sig_done_frame is None:
+            self._sig_done_frame = self._frame
+        try:
+            sign_text = SIGNATURE[:sig_revealed]
+            if sig_revealed < len(SIGNATURE):
+                sign_text += SIG_CURSOR
+            self.query_one("#splash-sign", Static).update(sign_text)
+        except Exception:  # noqa: BLE001 — 屏幕已卸载
+            pass
         scan_row = -1
         if typing_done:
             since = self._frame - self._typing_done_frame
@@ -151,9 +167,11 @@ class SplashScreen(ModalScreen):
         self._maybe_finish()
 
     def _anim_done(self) -> bool:
-        if self._typing_done_frame is None:
+        if self._typing_done_frame is None or self._sig_done_frame is None:
             return False
-        return (self._frame - self._typing_done_frame) >= (GRID_ROWS * SCAN_STEP_TICKS + HOLD_TICKS)
+        title_hold = (self._frame - self._typing_done_frame) >= (GRID_ROWS * SCAN_STEP_TICKS + HOLD_TICKS)
+        sig_hold = (self._frame - self._sig_done_frame) >= HOLD_TICKS
+        return title_hold and sig_hold
 
     def notify_loaded(self) -> None:
         """数据加载完成：动画播完（打字+扫描+hold）且 min_show 满足后自行关闭。"""

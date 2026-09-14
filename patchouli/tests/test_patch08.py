@@ -32,6 +32,7 @@ def test_splash_forced_loads_and_dismisses(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(splash_mod, "TYPING_COLS_PER_TICK", 999)
     monkeypatch.setattr(splash_mod, "HOLD_TICKS", 1)
+    monkeypatch.setattr(splash_mod, "SIG_CHARS_PER_TICK", 999)
     _docs(tmp_path)
 
     async def run() -> None:

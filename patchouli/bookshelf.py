@@ -103,7 +103,7 @@ class BookshelfApp(App):
         use_splash = self._splash_arg if self._splash_arg is not None else not self.is_headless
         if use_splash:
             self._boot_t0 = time.monotonic()
-            self.push_screen(SplashScreen("扫描文档树…", min_show=self._splash_min))
+            self.push_screen(SplashScreen("少女祈祷中……", min_show=self._splash_min))
             self.run_worker(self._load_async, thread=True, name="boot")
         else:
             self.action_reload()
