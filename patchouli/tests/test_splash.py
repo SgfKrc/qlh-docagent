@@ -7,7 +7,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from patchouli.splash import GRID, GRID_ROWS, GRID_W, UPPER, render_logo_markup, splash_delay  # noqa: E402
+from patchouli.splash import (  # noqa: E402
+    GRID,
+    GRID_ROWS,
+    GRID_W,
+    HOLD_TICKS,
+    TYPING_COLS_PER_TICK,
+    UPPER,
+    render_logo_markup,
+    splash_delay,
+)
 
 
 def _blocks(text: str) -> int:
@@ -41,3 +50,8 @@ def test_scan_row_highlight() -> None:
 
 def test_splash_delay_contract_kept() -> None:
     assert splash_delay(0.2, 1.0) > 0 and splash_delay(2.0, 1.0) == 0.0
+
+
+def test_typing_speed_and_hold_constants() -> None:
+    assert TYPING_COLS_PER_TICK == 3.75  # 打字速度 1.25x
+    assert HOLD_TICKS >= 5  # 播完的静止 hold（看清标题）

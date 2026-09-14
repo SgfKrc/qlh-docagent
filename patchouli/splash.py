@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+import time
+
 from textual.app import ComposeResult
 from textual.containers import Center, Vertical
 from textual.screen import ModalScreen
@@ -94,8 +96,9 @@ def render_logo_markup(grid: list[list[str]], scan_row: int = -1, revealed_cols:
 
 FRAMES = ("/", "-", "\\", "|")
 TICK_SECONDS = 0.08
-TYPING_COLS_PER_TICK = 3
+TYPING_COLS_PER_TICK = 3.75  # 打字速度（相对原速 1.25x）
 SCAN_STEP_TICKS = 2  # 每 2 tick 扫描线下移一行
+HOLD_TICKS = 10  # 扫描完毕后静止 hold（看清标题）
 
 
 class SplashScreen(ModalScreen):
@@ -108,11 +111,15 @@ class SplashScreen(ModalScreen):
     #splash-line { background: #7b4fc0; color: white; height: 3; margin-top: 1; content-align: center middle; }
     """
 
-    def __init__(self, status: str = "启动中…", **kwargs):
+    def __init__(self, status: str = "启动中…", min_show: float = 1.0, **kwargs):
         super().__init__(**kwargs)
         self.status_text = status
+        self.min_show = float(min_show)
         self._frame = 0
         self._timer = None
+        self._t0: float | None = None
+        self._loaded = False
+        self._typing_done_frame: int | None = None
 
     def compose(self) -> ComposeResult:
         with Center():
@@ -121,18 +128,47 @@ class SplashScreen(ModalScreen):
                 yield Static("", id="splash-line", markup=False)
 
     def on_mount(self) -> None:
+        self._t0 = time.monotonic()
         self._render_line()
         self._timer = self.set_interval(TICK_SECONDS, self._tick)
 
     def _tick(self) -> None:
         self._frame += 1
-        revealed = min(GRID_W, TYPING_COLS_PER_TICK * (self._frame + 2))
-        scan_row = int(self._frame / SCAN_STEP_TICKS) % GRID_ROWS if revealed >= GRID_W else -1
+        revealed = min(GRID_W, int(TYPING_COLS_PER_TICK * (self._frame + 2)))
+        typing_done = revealed >= GRID_W
+        if typing_done and self._typing_done_frame is None:
+            self._typing_done_frame = self._frame
+        scan_row = -1
+        if typing_done:
+            since = self._frame - self._typing_done_frame
+            if since < GRID_ROWS * SCAN_STEP_TICKS:  # 扫描一轮后进入静止 hold
+                scan_row = (since // SCAN_STEP_TICKS) % GRID_ROWS
         try:
             self.query_one("#splash-logo", Static).update(render_logo_markup(GRID, scan_row, revealed))
         except Exception:  # noqa: BLE001 — 屏幕已卸载
             pass
         self._render_line()
+        self._maybe_finish()
+
+    def _anim_done(self) -> bool:
+        if self._typing_done_frame is None:
+            return False
+        return (self._frame - self._typing_done_frame) >= (GRID_ROWS * SCAN_STEP_TICKS + HOLD_TICKS)
+
+    def notify_loaded(self) -> None:
+        """数据加载完成：动画播完（打字+扫描+hold）且 min_show 满足后自行关闭。"""
+        self._loaded = True
+        self._maybe_finish()
+
+    def _maybe_finish(self) -> None:
+        if not (self._loaded and self._anim_done()):
+            return
+        if self._t0 is not None and (time.monotonic() - self._t0) < self.min_show:
+            return
+        try:
+            self.dismiss()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _render_line(self) -> None:
         spin = FRAMES[self._frame % len(FRAMES)]

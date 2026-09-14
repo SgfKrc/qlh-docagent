@@ -27,7 +27,11 @@ def _docs(tmp_path: Path) -> None:
     _write(tmp_path, "docs/乙报告.md", "# 乙\n> 状态：现行\n")
 
 
-def test_splash_forced_loads_and_dismisses(tmp_path: Path) -> None:
+def test_splash_forced_loads_and_dismisses(tmp_path: Path, monkeypatch) -> None:
+    from patchouli import splash as splash_mod
+
+    monkeypatch.setattr(splash_mod, "TYPING_COLS_PER_TICK", 999)
+    monkeypatch.setattr(splash_mod, "HOLD_TICKS", 1)
     _docs(tmp_path)
 
     async def run() -> None:

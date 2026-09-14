@@ -19,7 +19,7 @@ from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, St
 from .catalog import scan
 from .config_check import env_status
 from .config_editor import ConfigEditor
-from .splash import SplashScreen, splash_delay
+from .splash import SplashScreen
 
 KIND_ORDER = ["decision", "special-plan", "ticket-plan", "report", "guide", "reference", "other"]
 KIND_LABEL = {
@@ -103,7 +103,7 @@ class BookshelfApp(App):
         use_splash = self._splash_arg if self._splash_arg is not None else not self.is_headless
         if use_splash:
             self._boot_t0 = time.monotonic()
-            self.push_screen(SplashScreen("扫描文档树…"))
+            self.push_screen(SplashScreen("扫描文档树…", min_show=self._splash_min))
             self.run_worker(self._load_async, thread=True, name="boot")
         else:
             self.action_reload()
@@ -115,15 +115,11 @@ class BookshelfApp(App):
     def _finish_load(self, catalog: dict) -> None:
         self.catalog = catalog
         self._apply_filter()
-        # 加载完成：快于最小展示则补齐到可感知时长；更慢则不额外等待
-        delay = splash_delay(time.monotonic() - self._boot_t0, self._splash_min)
-        if delay > 0:
-            self.set_timer(delay, self._dismiss_splash)
-        else:
-            self._dismiss_splash()
-
-    def _dismiss_splash(self) -> None:
-        if len(self.screen_stack) > 1:  # 用户可能已按键跳过
+        # 关闭时机由 splash 动画时序决定（打字+扫描+hold 播完且已加载 → 自行 dismiss）
+        screen = self.screen
+        if isinstance(screen, SplashScreen):
+            screen.notify_loaded()
+        elif len(self.screen_stack) > 1:
             self.pop_screen()
 
     def _check_env(self) -> None:
